@@ -27,7 +27,7 @@
 # THE SOFTWARE.
 #
 
-
+import time
 import logging
 from . import epdconfig
 
@@ -83,14 +83,25 @@ class EPD:
         epdconfig.digital_write(self.cs_pin, 1)
 
     def ReadBusy(self):
-        logger.debug("e-Paper busy")
+        # Assumes BUSY is active-low: 0 = busy, 1 = ready.
+        READY_LEVEL = 1        # if you later get a timeout, change to 0
+        TIMEOUT_MS = 15000     # 15s safety timeout
+
+        logger.debug("e-Paper busy: waiting for BUSY release")
+        t0 = time.monotonic()
+
         self.send_command(0x71)
-        busy = epdconfig.digital_read(self.busy_pin)
-        while(busy == 0):
+        while epdconfig.digital_read(self.busy_pin) != READY_LEVEL:
             self.send_command(0x71)
-            busy = epdconfig.digital_read(self.busy_pin)
-        epdconfig.delay_ms(20)
+            epdconfig.delay_ms(10)
+            if (time.monotonic() - t0) * 1000 > TIMEOUT_MS:
+                logger.error("e-Paper busy timeout after %d ms", TIMEOUT_MS)
+                raise TimeoutError("EPD busy wait timed out")
+
+        epdconfig.delay_ms(10)
         logger.debug("e-Paper busy release")
+
+
         
     def init(self):
         if (epdconfig.module_init() != 0):
