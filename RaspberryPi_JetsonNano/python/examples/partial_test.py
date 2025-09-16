@@ -73,28 +73,35 @@ class ParagraphWriter:
         """Get the width of a space character"""
         return self.get_word_width(" ")
     
-    def check_fit(self, word):
+    def check_fit(self, word, test_x=None):
         """Check if word fits on current line"""
+        if test_x is None:
+            test_x = self.current_x
         word_width = self.get_word_width(word)
         space_width = self.get_space_width()
-        return (self.current_x + space_width + word_width) <= (self.W - self.margin)
+        return (test_x + space_width + word_width) <= (self.W - self.margin)
     
     def add_word(self, word):
         """Add a word to the paragraph, wrapping if necessary"""
         space_width = self.get_space_width()
         
-        # Add space before word (except for first word)
+        # Calculate where this word would be placed
         if self.words_displayed:
-            if not self.check_fit(word):
+            # Add space before word
+            test_x = self.current_x + space_width
+            if not self.check_fit(word, test_x):
                 # Move to next line
                 self.current_x = self.start_x
                 self.current_y += self.line_height
+                word_x = self.current_x
             else:
-                # Add space
+                # Add space and place word
                 self.current_x += space_width
+                word_x = self.current_x
+        else:
+            # First word, no space needed
+            word_x = self.current_x
         
-        # Store the position where this word will be placed
-        word_x = self.current_x
         word_y = self.current_y
         
         # Update current position for next word
@@ -122,15 +129,17 @@ def draw_paragraph_frame(W, H, font, writer):
     img = draw_base(W, H, font)
     d = ImageDraw.Draw(img)
     
-    # Recalculate positions for all words
+    # Recalculate positions for all words using the same logic as add_word
     current_x = writer.start_x
     current_y = writer.start_y
     space_width = writer.get_space_width()
     
     for i, word in enumerate(writer.words_displayed):
-        # Add space before word (except first)
+        # Calculate position for this word
         if i > 0:
-            if not writer.check_fit(word):
+            # Add space before word
+            test_x = current_x + space_width
+            if not writer.check_fit(word, test_x):
                 # Word would wrap, so we're on a new line
                 current_x = writer.start_x
                 current_y += writer.line_height
