@@ -11,13 +11,7 @@ from waveshare_epd import epd7in5_V2 as driver
 
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
-# Test words to display
-TEST_WORDS = [
-    "Hello", "World", "E-Paper", "Display", "Partial", "Refresh", 
-    "Test", "Word", "Processor", "Slow", "Typing", "Effect",
-    "Waveshare", "7.5inch", "Monochrome", "Screen", "Arduino",
-    "Raspberry", "Pi", "Python", "Library", "Driver", "Code"
-]
+# Live word processor - no predefined words
 
 def load_font(size=28):
     try:
@@ -199,6 +193,57 @@ def display_word_with_partial(epd, word, writer, delay=1.5):
     # Wait before next word
     time.sleep(delay)
 
+def get_user_input():
+    """Get input from user with proper handling"""
+    try:
+        return input()
+    except KeyboardInterrupt:
+        return None
+    except EOFError:
+        return None
+
+def live_word_processor(epd, writer):
+    """Live word processor that accepts user input"""
+    print("\n" + "=" * 60)
+    print("LIVE WORD PROCESSOR MODE")
+    print("=" * 60)
+    print("Type words and press Enter after each word.")
+    print("Press Ctrl+C to exit.")
+    print("=" * 60)
+    
+    current_word = ""
+    
+    while True:
+        try:
+            # Get input from user
+            user_input = get_user_input()
+            if user_input is None:  # Ctrl+C or EOF
+                break
+                
+            # Clean input - remove extra whitespace
+            user_input = user_input.strip()
+            
+            if not user_input:
+                continue
+                
+            # Split by spaces to handle multiple words
+            words = user_input.split()
+            
+            for word in words:
+                # Clean word - remove special characters that might cause issues
+                clean_word = ''.join(c for c in word if c.isalnum() or c in '-.')
+                
+                if clean_word:  # Only process non-empty words
+                    print(f"Processing word: '{clean_word}'")
+                    display_word_with_partial(epd, clean_word, writer, delay=0.1)
+                    
+        except KeyboardInterrupt:
+            print("\nExiting word processor...")
+            break
+        except Exception as e:
+            print(f"Error processing input: {e}")
+            continue
+
 def main():
     epd = driver.EPD()
 
@@ -217,7 +262,7 @@ def main():
     font = load_font(28)  # Good size for paragraph text
     
     print(f"Display size: {W}x{H}")
-    print(f"Starting paragraph word processor test with {len(TEST_WORDS)} words...")
+    print("Starting live word processor...")
 
     # Create paragraph writer
     writer = ParagraphWriter(W, H, font, start_x=50, start_y=120, line_height=35, margin=50)
@@ -231,25 +276,21 @@ def main():
     epd.display(base_buf)
     time.sleep(1.0)
 
-    # Display each word slowly with partial refresh in paragraph style
-    print("\nStarting paragraph word display sequence...")
-    print("=" * 60)
-    
-    for i, word in enumerate(TEST_WORDS):
-        print(f"\nWord {i+1}/{len(TEST_WORDS)}: '{word}'")
-        display_word_with_partial(epd, word, writer, delay=0.6)
-    
-    print("\n" + "=" * 60)
-    print("Paragraph word processor test completed!")
-    print(f"Displayed {len(writer.words_displayed)} words in paragraph format.")
-    print("All words displayed with partial refresh.")
-    
-    # Keep display on for a moment before sleeping
-    time.sleep(3.0)
-    
-    # Put display to sleep
-    print("Putting display to sleep...")
-    epd.sleep()
+    # Start live word processor
+    try:
+        live_word_processor(epd, writer)
+    except KeyboardInterrupt:
+        print("\nWord processor interrupted by user.")
+    except Exception as e:
+        print(f"Error in word processor: {e}")
+    finally:
+        # Keep display on for a moment before sleeping
+        print("\nKeeping display on for 3 seconds...")
+        time.sleep(3.0)
+        
+        # Put display to sleep
+        print("Putting display to sleep...")
+        epd.sleep()
 
 if __name__ == "__main__":
     try:
