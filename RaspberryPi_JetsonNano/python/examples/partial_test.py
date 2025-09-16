@@ -92,22 +92,27 @@ class ParagraphWriter:
             else:
                 # Add space
                 self.current_x += space_width
-        else:
-            # First word, no space needed
-            pass
-            
+        
+        # Store the position where this word will be placed
+        word_x = self.current_x
+        word_y = self.current_y
+        
+        # Update current position for next word
+        word_width = self.get_word_width(word)
+        self.current_x += word_width
+        
         self.words_displayed.append(word)
-        return self.current_x, self.current_y
+        return word_x, word_y
     
-    def get_display_region(self, word):
+    def get_display_region(self, word, word_x, word_y):
         """Get the region that needs to be updated for a word"""
         word_width = self.get_word_width(word)
         word_height = self.line_height
         
         # Align to 8-pixel boundaries
-        x0 = align8(self.current_x)
-        y0 = self.current_y
-        x1 = up8(self.current_x + word_width)
+        x0 = align8(word_x)
+        y0 = word_y
+        x1 = up8(word_x + word_width)
         y1 = y0 + word_height
         
         return x0, y0, x1, y1
@@ -117,13 +122,14 @@ def draw_paragraph_frame(W, H, font, writer):
     img = draw_base(W, H, font)
     d = ImageDraw.Draw(img)
     
-    # Draw all words in their positions
+    # Recalculate positions for all words
     current_x = writer.start_x
     current_y = writer.start_y
+    space_width = writer.get_space_width()
     
     for i, word in enumerate(writer.words_displayed):
-        if i > 0:  # Add space before word (except first)
-            space_width = writer.get_space_width()
+        # Add space before word (except first)
+        if i > 0:
             if not writer.check_fit(word):
                 # Word would wrap, so we're on a new line
                 current_x = writer.start_x
@@ -131,6 +137,7 @@ def draw_paragraph_frame(W, H, font, writer):
             else:
                 current_x += space_width
         
+        # Draw the word
         if i == len(writer.words_displayed) - 1:  # Current word
             # Highlight current word with a subtle background
             word_width = writer.get_word_width(word)
@@ -138,6 +145,9 @@ def draw_paragraph_frame(W, H, font, writer):
             d.text((current_x, current_y), word, font=font, fill=255)  # White text on black background
         else:
             d.text((current_x, current_y), word, font=font, fill=0)  # Black text
+        
+        # Move to next position
+        current_x += writer.get_word_width(word)
     
     return img
 
@@ -149,7 +159,7 @@ def display_word_with_partial(epd, word, writer, delay=1.5):
     x, y = writer.add_word(word)
     
     # Get the region that needs updating
-    x0, y0, x1, y1 = writer.get_display_region(word)
+    x0, y0, x1, y1 = writer.get_display_region(word, x, y)
     
     print(f"Displaying: '{word}' at position ({x}, {y}) in region ({x0}, {y0}, {x1}, {y1})")
     
@@ -218,7 +228,7 @@ def main():
     
     for i, word in enumerate(TEST_WORDS):
         print(f"\nWord {i+1}/{len(TEST_WORDS)}: '{word}'")
-        display_word_with_partial(epd, word, writer, delay=1.8)
+        display_word_with_partial(epd, word, writer, delay=0.6)
     
     print("\n" + "=" * 60)
     print("Paragraph word processor test completed!")
