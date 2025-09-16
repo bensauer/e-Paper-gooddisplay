@@ -141,13 +141,7 @@ def draw_paragraph_frame(W, H, font, writer):
                 current_x += space_width
         
         # Draw the word
-        if i == len(writer.words_displayed) - 1:  # Current word
-            # Highlight current word with a subtle background
-            word_width = writer.get_word_width(word)
-            d.rectangle((current_x-2, current_y-2, current_x+word_width+2, current_y+writer.line_height+2), fill=0, outline=0)
-            d.text((current_x, current_y), word, font=font, fill=255)  # White text on black background
-        else:
-            d.text((current_x, current_y), word, font=font, fill=0)  # Black text
+        d.text((current_x, current_y), word, font=font, fill=0)  # Black text
         
         # Move to next position
         current_x += writer.get_word_width(word)
@@ -193,6 +187,68 @@ def display_word_with_partial(epd, word, writer, delay=1.5):
     # Wait before next word
     time.sleep(delay)
 
+def display_line_with_partial(epd, line, writer, delay=0.1):
+    """Display an entire line of text using partial refresh"""
+    W, H = epd.width, epd.height
+    
+    # Clean the line - remove special characters that might cause issues
+    clean_line = ''.join(c for c in line if c.isalnum() or c in ' -.')
+    
+    if not clean_line:
+        return
+    
+    # Split into words
+    words = clean_line.split()
+    
+    if not words:
+        return
+    
+    # Add all words to the paragraph
+    word_positions = []
+    for word in words:
+        x, y = writer.add_word(word)
+        word_positions.append((word, x, y))
+    
+    # Get the region that needs updating (from first to last word)
+    first_word, first_x, first_y = word_positions[0]
+    last_word, last_x, last_y = word_positions[-1]
+    
+    # Calculate region bounds
+    first_x0 = align8(first_x)
+    first_y0 = first_y
+    last_word_width = writer.get_word_width(last_word)
+    last_x1 = up8(last_x + last_word_width)
+    last_y1 = last_y + writer.line_height
+    
+    print(f"Displaying line: '{clean_line}' in region ({first_x0}, {first_y0}, {last_x1}, {last_y1})")
+    
+    # Draw the paragraph with all words
+    img = draw_paragraph_frame(W, H, writer.font, writer)
+    fullbuf = epd.getbuffer(img)
+    
+    # Extract region bytes for partial update
+    bytes_per_row = W // 8
+    region_bytes_per_row = (last_x1 - first_x0) // 8
+    xbyte = first_x0 // 8
+    
+    region_bytes = []
+    for y in range(first_y0, last_y1):
+        row_start = y * bytes_per_row
+        seg = fullbuf[row_start + xbyte : row_start + xbyte + region_bytes_per_row]
+        region_bytes.extend(seg)
+    
+    # Use partial refresh
+    try:
+        epd.display_Partial(region_bytes, first_x0, first_y0, last_x1, last_y1)
+        print(f"✓ Partial refresh successful for line: '{clean_line}'")
+    except Exception as e:
+        print(f"✗ Partial refresh failed for line: '{clean_line}': {e}")
+        # Fallback to full display
+        epd.display(fullbuf)
+    
+    # Wait before next line
+    time.sleep(delay)
+
 def get_user_input():
     """Get input from user with proper handling"""
     try:
@@ -203,15 +259,13 @@ def get_user_input():
         return None
 
 def live_word_processor(epd, writer):
-    """Live word processor that accepts user input"""
+    """Live word processor that accepts user input and renders lines at a time"""
     print("\n" + "=" * 60)
     print("LIVE WORD PROCESSOR MODE")
     print("=" * 60)
-    print("Type words and press Enter after each word.")
+    print("Type a line or sentence and press Enter to render it.")
     print("Press Ctrl+C to exit.")
     print("=" * 60)
-    
-    current_word = ""
     
     while True:
         try:
@@ -226,16 +280,9 @@ def live_word_processor(epd, writer):
             if not user_input:
                 continue
                 
-            # Split by spaces to handle multiple words
-            words = user_input.split()
-            
-            for word in words:
-                # Clean word - remove special characters that might cause issues
-                clean_word = ''.join(c for c in word if c.isalnum() or c in '-.')
-                
-                if clean_word:  # Only process non-empty words
-                    print(f"Processing word: '{clean_word}'")
-                    display_word_with_partial(epd, clean_word, writer, delay=0.1)
+            # Process the entire line as one unit
+            print(f"Processing line: '{user_input}'")
+            display_line_with_partial(epd, user_input, writer, delay=0.1)
                     
         except KeyboardInterrupt:
             print("\nExiting word processor...")
