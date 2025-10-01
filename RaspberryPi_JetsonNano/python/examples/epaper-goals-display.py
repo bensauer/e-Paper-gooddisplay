@@ -39,8 +39,11 @@ def draw_base(W, H, font):
     img = Image.new("1", (W, H), 255)
     d = ImageDraw.Draw(img)
     
+    # Calculate padding as 10% of screen width
+    padding = int(W * 0.1)
+    
     # Title
-    d.text((20, 16), "BIG GOALS THIS WEEK", font=font, fill=0)
+    d.text((padding, padding), "BIG GOALS THIS WEEK", font=font, fill=0)
     
     return img
 
@@ -49,12 +52,14 @@ def draw_goals_text(W, H, font, goals_text):
     img = draw_base(W, H, font)
     d = ImageDraw.Draw(img)
     
+    # Calculate padding as 10% of screen width
+    padding = int(W * 0.1)
+    
     # Text settings
-    start_x = 20
-    start_y = 80
+    start_x = padding
+    start_y = padding + 64  # Title height + some spacing
     line_height = 40
-    margin = 20
-    max_width = W - 2 * margin
+    max_width = W - 2 * padding
     
     # Split text into lines and wrap long lines
     lines = []
